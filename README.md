@@ -1,3 +1,5 @@
+##Overview
+
 This exports the following MaxScale metrics for Prometheus:
 
 - Server connections (gauges)
@@ -5,7 +7,7 @@ This exports the following MaxScale metrics for Prometheus:
 - Maxscale instance status and variables (gauge & counter mix)
 - Event Times (Executed & Queued histograms)
 
-Environment:
+### Environment:
 
 Your MaxScale instance needs to have the JSON HTTP listener enabled so this can pull the stats from your MaxScale server, and you need to specify the listen address for the exporter:
 
@@ -14,7 +16,12 @@ MAXSCALE_MAXINFO_JSON_LISTENER_TCP_ADDR=maxscale:8003
 MAXSCALE_EXPORTER_LISTEN_ADDR=:9195
 ```
 
-Example output:
+### Running the thing...
+
+docker-run -d -e MAXSCALE_MAXINFO_JSON_LISTENER_TCP_ADDR=maxscale:8003 -e MAXSCALE_EXPORTER_LISTEN_ADDR=:9195 skord/maxscale_exporter
+
+### Example output
+
 
 ```
 #TYPE maxscale_servers_connections gauge
