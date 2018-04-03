@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 )
@@ -38,14 +39,16 @@ var (
 const namespace = "maxscale"
 
 type MaxScale struct {
-	Address       string
-	up            prometheus.Gauge
-	totalScrapes  prometheus.Counter
-	serverMetrics map[string]*prometheus.GaugeVec
-	serviceMetrics map[string]*prometheus.GaugeVec
-	statusMetrics map[string]*prometheus.GaugeVec
+	Address         string
+	up              prometheus.Gauge
+	totalScrapes    prometheus.Counter
+	serverMetrics   map[string]*prometheus.GaugeVec
+	serviceMetrics  map[string]*prometheus.GaugeVec
+	statusMetrics   map[string]*prometheus.GaugeVec
 	variableMetrics map[string]*prometheus.GaugeVec
-	mutex         sync.RWMutex
+	eventsExecuted  prometheus.Metric
+	eventsQueued    prometheus.Metric
+	mutex           sync.RWMutex
 }
 
 type Server struct {
@@ -57,15 +60,15 @@ type Server struct {
 }
 
 type Service struct {
-	Name          string `json:"Service Name"`
-	Router        string `json:"Router Module"`
-	Sessions      float64    `json:"No. Sessions"`
-	TotalSessions float64    `json:"Total Sessions"`
+	Name          string  `json:"Service Name"`
+	Router        string  `json:"Router Module"`
+	Sessions      float64 `json:"No. Sessions"`
+	TotalSessions float64 `json:"Total Sessions"`
 }
 
 type Status struct {
-	Name  string `json:"Variable_name"`
-	Value float64    `json:"Value"`
+	Name  string  `json:"Variable_name"`
+	Value float64 `json:"Value"`
 }
 
 type Variable struct {
@@ -75,14 +78,14 @@ type Variable struct {
 
 type Event struct {
 	Duration string `json:"Duration"`
-	Queued   int    `json:"No. Events Queued"`
-	Executed int    `json:"No. Events Executed"`
+	Queued   uint64 `json:"No. Events Queued"`
+	Executed uint64 `json:"No. Events Executed"`
 }
 
 var (
-	serverLabelNames  = []string{"server", "address"}
-	serviceLabelNames = []string{"name", "router"}
-	statusLabelNames = []string{}
+	serverLabelNames    = []string{"server", "address"}
+	serviceLabelNames   = []string{"name", "router"}
+	statusLabelNames    = []string{}
 	variablesLabelNames = []string{}
 )
 
@@ -111,34 +114,34 @@ var (
 	}
 
 	statusMetrics = metrics{
-		"status_uptime": newMetric("status_uptime", "How long has the server been running", nil, statusLabelNames),
+		"status_uptime":                    newMetric("status_uptime", "How long has the server been running", nil, statusLabelNames),
 		"status_uptime_since_flush_status": newMetric("status_uptime_since_flush_status", "How long the server has been up since flush status", nil, statusLabelNames),
-		"status_threads_created": newMetric("status_threads_created", "How many threads have been created", nil, statusLabelNames),
-		"status_threads_running": newMetric("status_threads_running", "How many threads are running", nil, statusLabelNames),
-		"status_threadpool_threads": newMetric("status_threadpool_threads", "How many threadpool threads there are", nil, statusLabelNames),
-		"status_threads_connected": newMetric("status_threads_connected", "How many threads are connected", nil, statusLabelNames),
-		"status_connections": newMetric("status_connections", "How many connections there are", nil, statusLabelNames),
-		"status_client_connections": newMetric("status_client_connections", "How many client connections there are", nil, statusLabelNames),
-		"status_backend_connections": newMetric("status_backend_connections", "How many backend connections there are", nil, statusLabelNames),
-		"status_listeners": newMetric("status_listeners", "How many listeners there are", nil, statusLabelNames),
-		"status_zombie_connections": newMetric("status_zombie_connections", "How many zombie connetions there are", nil, statusLabelNames),
-		"status_internal_descriptors": newMetric("status_internal_descriptors", "How many internal descriptors there are", nil, statusLabelNames),
-		"status_read_events": newMetric("status_read_events", "How many read events happened", nil ,statusLabelNames),
-		"status_write_events": newMetric("status_write_events", "How many write events happened", nil, statusLabelNames),
-		"status_hangup_events": newMetric("status_hangup_events", "How many hangup events happened", nil, statusLabelNames),
-		"status_error_events": newMetric("status_error_events", "How many error events happened", nil, statusLabelNames),
-		"status_accept_events": newMetric("status_accept_events", "How many accept events happened", nil, statusLabelNames),
-		"status_event_queue_length": newMetric("status_event_queue_length", "How long the event queue is", nil, statusLabelNames),
-		"status_max_event_queue_length": newMetric("status_max_event_queue_length", "The max length of the event queue", nil, statusLabelNames),
-		"status_max_event_queue_time": newMetric("status_max_event_queue_time", "The max event queue time", nil, statusLabelNames),
-		"status_max_event_execution_time": newMetric("status_max_event_execution_time", "The max event execution time", nil, statusLabelNames),
+		"status_threads_created":           newMetric("status_threads_created", "How many threads have been created", nil, statusLabelNames),
+		"status_threads_running":           newMetric("status_threads_running", "How many threads are running", nil, statusLabelNames),
+		"status_threadpool_threads":        newMetric("status_threadpool_threads", "How many threadpool threads there are", nil, statusLabelNames),
+		"status_threads_connected":         newMetric("status_threads_connected", "How many threads are connected", nil, statusLabelNames),
+		"status_connections":               newMetric("status_connections", "How many connections there are", nil, statusLabelNames),
+		"status_client_connections":        newMetric("status_client_connections", "How many client connections there are", nil, statusLabelNames),
+		"status_backend_connections":       newMetric("status_backend_connections", "How many backend connections there are", nil, statusLabelNames),
+		"status_listeners":                 newMetric("status_listeners", "How many listeners there are", nil, statusLabelNames),
+		"status_zombie_connections":        newMetric("status_zombie_connections", "How many zombie connetions there are", nil, statusLabelNames),
+		"status_internal_descriptors":      newMetric("status_internal_descriptors", "How many internal descriptors there are", nil, statusLabelNames),
+		"status_read_events":               newMetric("status_read_events", "How many read events happened", nil, statusLabelNames),
+		"status_write_events":              newMetric("status_write_events", "How many write events happened", nil, statusLabelNames),
+		"status_hangup_events":             newMetric("status_hangup_events", "How many hangup events happened", nil, statusLabelNames),
+		"status_error_events":              newMetric("status_error_events", "How many error events happened", nil, statusLabelNames),
+		"status_accept_events":             newMetric("status_accept_events", "How many accept events happened", nil, statusLabelNames),
+		"status_event_queue_length":        newMetric("status_event_queue_length", "How long the event queue is", nil, statusLabelNames),
+		"status_max_event_queue_length":    newMetric("status_max_event_queue_length", "The max length of the event queue", nil, statusLabelNames),
+		"status_max_event_queue_time":      newMetric("status_max_event_queue_time", "The max event queue time", nil, statusLabelNames),
+		"status_max_event_execution_time":  newMetric("status_max_event_execution_time", "The max event execution time", nil, statusLabelNames),
 	}
 
 	variableMetrics = metrics{
-		"variables_maxscale_threads": newMetric("variables_thread", "MAXSCALE_THREADS", nil, variablesLabelNames),
-		"variables_maxscale_nbpolls": newMetric("variables_nbpolls", "MAXSCALE_NBPOLLS", nil, variablesLabelNames),
+		"variables_maxscale_threads":   newMetric("variables_thread", "MAXSCALE_THREADS", nil, variablesLabelNames),
+		"variables_maxscale_nbpolls":   newMetric("variables_nbpolls", "MAXSCALE_NBPOLLS", nil, variablesLabelNames),
 		"variables_maxscale_pollsleep": newMetric("variables_pollsleep", "MAXSCALE_POLLSLEEP", nil, variablesLabelNames),
-		"variables_maxscale_sessions": newMetric("variables_sessions", "MAXSCALE_SESSIONS", nil, variablesLabelNames),
+		"variables_maxscale_sessions":  newMetric("variables_sessions", "MAXSCALE_SESSIONS", nil, variablesLabelNames),
 	}
 )
 
@@ -155,9 +158,9 @@ func NewExporter(address string) (*MaxScale, error) {
 			Name:      "exporter_total_scrapes",
 			Help:      "Current total MaxScale scrapes",
 		}),
-		serverMetrics: serverMetrics,
-		serviceMetrics: serviceMetrics,
-		statusMetrics: statusMetrics,
+		serverMetrics:   serverMetrics,
+		serviceMetrics:  serviceMetrics,
+		statusMetrics:   statusMetrics,
 		variableMetrics: variableMetrics,
 	}, nil
 }
@@ -196,6 +199,9 @@ func (m *MaxScale) Collect(ch chan<- prometheus.Metric) {
 
 	ch <- m.up
 	ch <- m.totalScrapes
+	ch <- m.eventsExecuted
+	ch <- m.eventsQueued
+
 	m.collectMetrics(ch)
 }
 
@@ -238,7 +244,11 @@ func (m *MaxScale) collectMetrics(metrics chan<- prometheus.Metric) {
 func (m *MaxScale) scrape() {
 	m.totalScrapes.Inc()
 
-	m.fetch()
+	if err := m.fetch(); err != nil {
+		log.Fatal(err)
+		m.up.Set(0)
+		return
+	}
 
 	m.up.Set(1)
 }
@@ -264,26 +274,28 @@ func (m *MaxScale) getStatistics(path string) ([]byte, error) {
 	return jsonDataFromHttp, nil
 }
 
-func (m *MaxScale) fetch() {
+func (m *MaxScale) fetch() error {
 	if err := m.parseServers(); err != nil {
-		log.Print(err)
-		m.up.Set(0)
+		return err
 	}
 
 	if err := m.parseServices(); err != nil {
-		log.Print(err)
-		m.up.Set(0)
+		return err
 	}
 
 	if err := m.parseStatus(); err != nil {
-		log.Print(err)
-		m.up.Set(0)
+		return err
 	}
 
 	if err := m.parseVariables(); err != nil {
-		log.Print(err)
-		m.up.Set(0)
+		return err
 	}
+
+	if err := m.parseEvents(); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (m *MaxScale) parseServers() error {
@@ -335,7 +347,7 @@ func (m *MaxScale) parseServices() error {
 		return fmt.Errorf("Error while unmarshaling json: %v\n", err)
 	}
 
-	for _, service := range services{
+	for _, service := range services {
 		m.serviceMetrics["service_current_sessions"].WithLabelValues(service.Name, service.Router).Set(service.Sessions)
 		m.serviceMetrics["service_total_sessions"].WithLabelValues(service.Name, service.Router).Set(service.TotalSessions)
 	}
@@ -353,7 +365,7 @@ func (m *MaxScale) parseStatus() error {
 	var status []Status
 
 	err = json.Unmarshal([]byte(response), &status)
-		if err != nil {
+	if err != nil {
 		return fmt.Errorf("Error while unmarshaling json: %v\n", err)
 	}
 
@@ -392,71 +404,159 @@ func (m *MaxScale) parseVariables() error {
 
 	return nil
 }
-// func events(w http.ResponseWriter, r *http.Request) {
-// 	url := maxscaleUrl("/event/times")
-// 	resp, err := http.Get(url)
-// 	defer resp.Body.Close()
-// 	if err != nil {
-// 		panic(err)
-// 	}
-// 	jsonDataFromHttp, err := ioutil.ReadAll(resp.Body)
-// 	if err != nil {
-// 		panic(err)
-// 	}
-// 	var jsonData []Event
-// 	err = json.Unmarshal([]byte(jsonDataFromHttp), &jsonData)
-// 	if err != nil {
-// 		panic(err)
-// 	}
-// 	fmt.Fprintf(w, "#TYPE maxscale_events_executed_seconds histogram\n")
-// 	fmt.Fprintf(w, "#HELP maxscale_events_executed_seconds Events Executed\n")
-// 	executedsum := float64(0)
-// 	executedcount := 0
-// 	executedtime := 0.1
-// 	for _, element := range jsonData {
-// 		executedcount += element.Executed
-// 		executedsum = executedsum + (float64(element.Executed) * executedtime)
-// 		executedtime += 0.1
-// 		switch element.Duration {
-// 		case "< 100ms":
-// 			fmt.Fprintf(w, "maxscale_events_executed_seconds_bucket{le=\"0.100000\"} %d\n", executedcount)
-// 		case "> 3000ms":
-// 			fmt.Fprintf(w, "maxscale_events_executed_seconds_bucket{le=\"+Inf\"} %d\n", executedcount)
-// 		default:
-// 			durationf := strings.Split(element.Duration, " ")
-// 			ad := strings.Trim(durationf[len(durationf)-1], "ms")
-// 			duurr, _ := strconv.ParseFloat(ad, 64)
-// 			hurrr := duurr / 1000
-// 			fmt.Fprintf(w, "maxscale_events_executed_seconds_bucket{le=\"%f\"} %d\n", hurrr, executedcount)
-// 		}
-// 	}
-// 	fmt.Fprintf(w, "maxscale_events_executed_seconds_sum %d\n", int(executedsum))
-// 	fmt.Fprintf(w, "maxscale_events_executed_seconds_count %d\n\n", executedcount)
-// 	fmt.Fprintf(w, "#TYPE maxscale_events_queued_seconds histogram\n")
-// 	fmt.Fprintf(w, "#HELP maxscale_events_queued_seconds Events Queued\n")
-// 	queuedsum := float64(0)
-// 	queuedcount := 0
-// 	queuedtime := 0.1
-// 	for _, element := range jsonData {
-// 		queuedcount += element.Queued
-// 		queuedsum = queuedsum + (float64(element.Queued) * queuedtime)
-// 		queuedtime += 0.1
-// 		switch element.Duration {
-// 		case "< 100ms":
-// 			fmt.Fprintf(w, "maxscale_events_queued_seconds_bucket{le=\"0.100000\"} %d\n", queuedcount)
-// 		case "> 3000ms":
-// 			fmt.Fprintf(w, "maxscale_events_queued_seconds_bucket{le=\"+Inf\"} %d\n", queuedcount)
-// 		default:
-// 			durationf := strings.Split(element.Duration, " ")
-// 			ad := strings.Trim(durationf[len(durationf)-1], "ms")
-// 			duurr, _ := strconv.ParseFloat(ad, 64)
-// 			hurrr := duurr / 1000
-// 			fmt.Fprintf(w, "maxscale_events_queued_seconds_bucket{le=\"%f\"} %d\n", hurrr, queuedcount)
-// 		}
-// 	}
-// 	fmt.Fprintf(w, "maxscale_events_queued_seconds_sum %d\n", int(queuedsum))
-// 	fmt.Fprintf(w, "maxscale_events_queued_seconds_count %d\n", queuedcount)
-// }
+func (m *MaxScale) parseEvents() error {
+	response, err := m.getStatistics("/event/times")
+
+	if err != nil {
+		return err
+	}
+
+	var events []Event
+
+	err = json.Unmarshal([]byte(response), &events)
+	if err != nil {
+		return err
+	}
+
+	eventExecutedBuckets := map[float64]uint64{
+		0.1: 0,
+		0.2: 0,
+		0.3: 0,
+		0.4: 0,
+		0.5: 0,
+		0.6: 0,
+		0.7: 0,
+		0.8: 0,
+		0.9: 0,
+		1.0: 0,
+		1.1: 0,
+		1.2: 0,
+		1.3: 0,
+		1.4: 0,
+		1.5: 0,
+		1.6: 0,
+		1.7: 0,
+		1.8: 0,
+		1.9: 0,
+		2.0: 0,
+		2.1: 0,
+		2.2: 0,
+		2.3: 0,
+		2.4: 0,
+		2.5: 0,
+		2.6: 0,
+		2.7: 0,
+		2.8: 0,
+		2.9: 0,
+	}
+	executedSum := float64(0)
+	executedCount := uint64(0)
+	executedTime := 0.1
+	for _, element := range events {
+		executedCount += element.Executed
+		executedSum = executedSum + (float64(element.Executed) * executedTime)
+		executedTime += 0.1
+		switch element.Duration {
+		case "< 100ms":
+			eventExecutedBuckets[0.1] = element.Executed
+		case "> 3000ms":
+			break // Do nothing as these will get accumulated in the +Inf bucket
+		default:
+			durationf := strings.Split(element.Duration, " ")
+			ad := strings.Trim(durationf[len(durationf)-1], "ms")
+			milliseconds, _ := strconv.ParseFloat(ad, 64)
+			seconds := milliseconds / 1000
+			eventExecutedBuckets[seconds] = element.Executed
+		}
+	}
+
+	desc := prometheus.NewDesc(
+		"maxscale_events_executed_seconds",
+		"Amount of events executed",
+		[]string{},
+		prometheus.Labels{},
+	)
+
+	// Create a constant histogram from values we got from a 3rd party telemetry system.
+	eventsExecuted := prometheus.MustNewConstHistogram(
+		desc,
+		executedCount, executedSum,
+		eventExecutedBuckets,
+	)
+
+	m.eventsExecuted = eventsExecuted
+
+	eventQueuedBuckets := map[float64]uint64{
+		0.1: 0,
+		0.2: 0,
+		0.3: 0,
+		0.4: 0,
+		0.5: 0,
+		0.6: 0,
+		0.7: 0,
+		0.8: 0,
+		0.9: 0,
+		1.0: 0,
+		1.1: 0,
+		1.2: 0,
+		1.3: 0,
+		1.4: 0,
+		1.5: 0,
+		1.6: 0,
+		1.7: 0,
+		1.8: 0,
+		1.9: 0,
+		2.0: 0,
+		2.1: 0,
+		2.2: 0,
+		2.3: 0,
+		2.4: 0,
+		2.5: 0,
+		2.6: 0,
+		2.7: 0,
+		2.8: 0,
+		2.9: 0,
+	}
+
+	queuedSum := float64(0)
+	queuedCount := uint64(0)
+	queuedTime := 0.1
+	for _, element := range events {
+		queuedCount += element.Queued
+		queuedSum = queuedSum + (float64(element.Queued) * queuedTime)
+		queuedTime += 0.1
+		switch element.Duration {
+		case "< 100ms":
+			eventQueuedBuckets[0.1] = element.Queued
+		case "> 3000ms":
+			break // Do nothing as this gets accumulated in the +Inf bucket
+		default:
+			durationf := strings.Split(element.Duration, " ")
+			ad := strings.Trim(durationf[len(durationf)-1], "ms")
+			milliseconds, _ := strconv.ParseFloat(ad, 64)
+			seconds := milliseconds / 1000
+			eventQueuedBuckets[seconds] = element.Queued
+		}
+	}
+
+	queuedDesc := prometheus.NewDesc(
+		"maxscale_events_queued_seconds",
+		"Amount of events queued",
+		[]string{},
+		prometheus.Labels{},
+	)
+
+	// Create a constant histogram from values we got from a 3rd party telemetry system.
+	eventsQueued := prometheus.MustNewConstHistogram(
+		queuedDesc,
+		queuedCount, queuedSum,
+		eventQueuedBuckets,
+	)
+
+	m.eventsQueued = eventsQueued
+
+	return nil
+}
 
 func main() {
 	log.SetFlags(0)
