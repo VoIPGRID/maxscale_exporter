@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -135,6 +136,7 @@ var (
 		"status_max_event_queue_length":    newMetric("status_max_event_queue_length", "The max length of the event queue", nil, statusLabelNames),
 		"status_max_event_queue_time":      newMetric("status_max_event_queue_time", "The max event queue time", nil, statusLabelNames),
 		"status_max_event_execution_time":  newMetric("status_max_event_execution_time", "The max event execution time", nil, statusLabelNames),
+		"status_pending_events":            newMetric("status_pending_events", "How many events are pending", nil, statusLabelNames),
 	}
 
 	variableMetrics = metrics{
@@ -385,10 +387,11 @@ func (m *MaxScale) parseVariables() error {
 
 	var variables []Variable
 
-	err = json.Unmarshal([]byte(response), &variables)
+	data := bytes.Replace(response, []byte("NULL"), []byte("null"), -1)
+
+	err = json.Unmarshal([]byte(data), &variables)
 	if err != nil {
-		log.Print(err)
-		return err
+		return fmt.Errorf("Error while unmarshaling json: %v\n", err)
 	}
 
 	for _, element := range variables {
@@ -415,7 +418,7 @@ func (m *MaxScale) parseEvents() error {
 
 	err = json.Unmarshal([]byte(response), &events)
 	if err != nil {
-		return err
+		return fmt.Errorf("Error while unmarshaling json: %v\n", err)
 	}
 
 	eventExecutedBuckets := map[float64]uint64{
