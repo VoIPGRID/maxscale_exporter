@@ -416,7 +416,7 @@ func (m *MaxScale) parseEvents(ch chan<- prometheus.Metric) error {
 		case "< 100ms":
 			eventExecutedBuckets[0.1] = element.Executed
 		case "> 3000ms":
-			break // Do nothing as these will get accumulated in the +Inf bucket
+			// Do nothing as these will get accumulated in the +Inf bucket
 		default:
 			durationf := strings.Split(element.Duration, " ")
 			ad := strings.Trim(durationf[len(durationf)-1], "ms")
@@ -483,7 +483,7 @@ func (m *MaxScale) parseEvents(ch chan<- prometheus.Metric) error {
 		case "< 100ms":
 			eventQueuedBuckets[0.1] = element.Queued
 		case "> 3000ms":
-			break // Do nothing as this gets accumulated in the +Inf bucket
+			// Do nothing as this gets accumulated in the +Inf bucket
 		default:
 			durationf := strings.Split(element.Duration, " ")
 			ad := strings.Trim(durationf[len(durationf)-1], "ms")
