@@ -5,22 +5,21 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 const (
 	envPrefix   = "MAXSCALE_EXPORTER"
 	metricsPath = "/metrics"
 )
-
-
 
 // Flags for CLI invocation
 var (
@@ -74,7 +73,7 @@ type Event struct {
 }
 
 type Metric struct {
-	Desc *prometheus.Desc
+	Desc      *prometheus.Desc
 	ValueType prometheus.ValueType
 }
 
