@@ -197,27 +197,38 @@ func (m *MaxScale) Describe(ch chan<- *prometheus.Desc) {
 func (m *MaxScale) Collect(ch chan<- prometheus.Metric) {
 	m.totalScrapes.Inc()
 
+	var parseErrors = false
+
 	if err := m.parseServers(ch); err != nil {
-		log.Fatal(err)
+		parseErrors = true
+		log.Print(err)
 	}
 
 	if err := m.parseServices(ch); err != nil {
-		log.Fatal(err)
+		parseErrors = true
+		log.Print(err)
 	}
 
 	if err := m.parseStatus(ch); err != nil {
-		log.Fatal(err)
+		parseErrors = true
+		log.Print(err)
 	}
 
 	if err := m.parseVariables(ch); err != nil {
-		log.Fatal(err)
+		parseErrors = true
+		log.Print(err)
 	}
 
 	if err := m.parseEvents(ch); err != nil {
-		log.Fatal(err)
+		parseErrors = true
+		log.Print(err)
 	}
 
-	m.up.Set(1)
+	if parseErrors {
+		m.up.Set(0)
+	} else {
+		m.up.Set(1)
+	}
 	ch <- m.up
 	ch <- m.totalScrapes
 }
