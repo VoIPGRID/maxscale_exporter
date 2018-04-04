@@ -1,5 +1,4 @@
 ## Overview
-
 This exports the following MaxScale metrics for Prometheus:
 
 - Server connections
@@ -8,28 +7,34 @@ This exports the following MaxScale metrics for Prometheus:
 - Event Times (Executed & Queued histograms)
 
 ### Requirements:
-
 Your MaxScale instance needs to have the JSON HTTP listener enabled so this can pull the stats from your MaxScale server. You can read [here](https://mariadb.com/kb/en/mariadb-enterprise/mariadb-maxscale-14/maxinfo-plugin/#configuration) how to set this up.
 
 ## Installation
-
 Quite simple: get [Go](https://golang.org/dl), set a `$GOPATH`, and run
 
     go get github.com/wearespindle/maxscale_exporter
 
 ## Use
-
 Make sure `$GOPATH/bin` is in your `$PATH`.
 
     $ maxscale_exporter -h
     Usage of maxscale_exporter:
       -address string
-            address to get maxscale statistics from (default "127.0.0.1:8003")
+        	address to get maxscale statistics from (default "127.0.0.1:8003")
+      -pidfile string
+        	the pid file for maxscale to monitor process statistics
       -port string
-            the port that the maxscale exporter listens on (default ":9195")
+        	the port that the maxscale exporter listens on (default "9195")
+
+## Process metrics
+This exporter exposes two different sets of process metrics but only one of them is enabled by default.
+The metrics of the exporter process itself are exposed in the `process` namepsace (e.g. `process_start_time_seconds`), this happens automatically and no further setup is needed.
+
+However if you want to expose metrics about the MaxScale process itself, you can do that by specifying the `-pidfile` flag.
+However this only works in Linux systems where `/proc` is available. For example you could set this up by specifying `-pidfile /run/maxscale/maxscale.pid` as a flag.
+Note that the user that runs the exporter process needs to have read access to the pidfile in order for this to work.
 
 ## Testing locally
-
 If you want to try out the exporter locally, a Dockerfile is provided to run a MaxScale instance with the HTTP JSON listener enabled. To test it out locally you run:
 
 ```
@@ -40,8 +45,6 @@ $ docker run -d -p 8003:8003 maxscale_maxinfo:latest
 If you then run the maxscale_exporter it should use the default settings and pull statistics from the Docker container.
 
 ### Example output
-
-
 ```
 # HELP maxscale_events_executed_seconds Amount of events executed
 # TYPE maxscale_events_executed_seconds histogram
