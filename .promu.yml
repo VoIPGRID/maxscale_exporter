@@ -1,7 +1,7 @@
 go:
     cgo: true
 repository:
-    path: github.com/wearespindle/maxscale_exporter
+    path: github.com/skord/maxscale_exporter
 build:
     binaries:
         - name: maxscale_exporter
