@@ -1,219 +1,240 @@
-##Overview
-
+## Overview
 This exports the following MaxScale metrics for Prometheus:
 
-- Server connections (gauges)
-- Service session count (gauges)
-- Maxscale instance status and variables (gauge & counter mix)
+- Server connections
+- Service session count
+- Maxscale instance status and variables
 - Event Times (Executed & Queued histograms)
 
-### Environment:
+### Requirements:
+Your MaxScale instance needs to have the JSON HTTP listener enabled so this can pull the stats from your MaxScale server. You can read [here](https://mariadb.com/kb/en/mariadb-enterprise/mariadb-maxscale-14/maxinfo-plugin/#configuration) how to set this up.
 
-Your MaxScale instance needs to have the JSON HTTP listener enabled so this can pull the stats from your MaxScale server, and you need to specify the listen address for the exporter:
+## Installation
+Quite simple: get [Go](https://golang.org/dl), set a `$GOPATH`, and run
 
-````
-MAXSCALE_MAXINFO_JSON_LISTENER_TCP_ADDR=maxscale:8003
-MAXSCALE_EXPORTER_LISTEN_ADDR=:9195
+    go get github.com/wearespindle/maxscale_exporter
+
+## Use
+Make sure `$GOPATH/bin` is in your `$PATH`.
+
+    $ maxscale_exporter -h
+    Usage of maxscale_exporter:
+      -address string
+        	address to get maxscale statistics from (default "127.0.0.1:8003")
+      -pidfile string
+        	the pid file for maxscale to monitor process statistics
+      -port string
+        	the port that the maxscale exporter listens on (default "9195")
+
+## Process metrics
+This exporter exposes two different sets of process metrics but only one of them is enabled by default.
+The metrics of the exporter process itself are exposed in the `process` namepsace (e.g. `process_start_time_seconds`), this happens automatically and no further setup is needed.
+
+However if you want to expose metrics about the MaxScale process itself, you can do that by specifying the `-pidfile` flag.
+However this only works in Linux systems where `/proc` is available. For example you could set this up by specifying `-pidfile /run/maxscale/maxscale.pid` as a flag.
+Note that the user that runs the exporter process needs to have read access to the pidfile in order for this to work.
+
+## Testing locally
+If you want to try out the exporter locally, a Dockerfile is provided to run a MaxScale instance with the HTTP JSON listener enabled. To test it out locally you run:
+
 ```
-
-### Running the thing...
-
-docker-run -d -e MAXSCALE_MAXINFO_JSON_LISTENER_TCP_ADDR=maxscale:8003 -e MAXSCALE_EXPORTER_LISTEN_ADDR=:9195 skord/maxscale_exporter
+$ cd maxscale_docker
+$ docker build . -t maxscale_maxinfo:latest
+$ docker run -d -p 8003:8003 maxscale_maxinfo:latest
+```
+If you then run the maxscale_exporter it should use the default settings and pull statistics from the Docker container.
 
 ### Example output
-
-
 ```
-#TYPE maxscale_servers_connections gauge
-#HELP maxscale_servers_connections Server connections
-maxscale_servers_connections{server="mariadb1", address="mariadb1", port="3306"} 0
-maxscale_servers_connections{server="mariadb2", address="mariadb2", port="3306"} 0
-maxscale_servers_connections{server="mariadb3", address="mariadb3", port="3306"} 0
-maxscale_servers_connections{server="mariadb4", address="mariadb4", port="3306"} 0
-maxscale_servers_connections{server="mariadb5", address="mariadb5", port="3306"} 0
-
-#TYPE maxscale_services_sessions gauge
-#HELP maxscale_services_sessions Service Sessions
-maxscale_services_sessions{name="Splitter Service", router="readwritesplit"} 1
-maxscale_services_sessions{name="Read-Only Service", router="readconnroute"} 1
-maxscale_services_sessions{name="MaxAdmin Service", router="cli"} 1
-maxscale_services_sessions{name="MaxInfo", router="maxinfo"} 3
-
-#TYPE maxscale_status_uptime counter
-#HELP maxscale_status_uptime Uptime
-maxscale_status_uptime 812
-
-#TYPE maxscale_status_uptime_since_flush_status counter
-#HELP maxscale_status_uptime_since_flush_status Uptime_since_flush_status
-maxscale_status_uptime_since_flush_status 812
-
-#TYPE maxscale_status_threads_created counter
-#HELP maxscale_status_threads_created Threads_created
-maxscale_status_threads_created 1
-
-#TYPE maxscale_status_threads_running gauge
-#HELP maxscale_status_threads_running Threads_running
-maxscale_status_threads_running 1
-
-#TYPE maxscale_status_threadpool_threads counter
-#HELP maxscale_status_threadpool_threads Threadpool_threads
-maxscale_status_threadpool_threads 1
-
-#TYPE maxscale_status_threads_connected gauge
-#HELP maxscale_status_threads_connected Threads_connected
-maxscale_status_threads_connected 6
-
-#TYPE maxscale_status_connections gauge
-#HELP maxscale_status_connections Connections
-maxscale_status_connections 6
-
-#TYPE maxscale_status_client_connections gauge
-#HELP maxscale_status_client_connections Client_connections
-maxscale_status_client_connections 1
-
-#TYPE maxscale_status_backend_connections gauge
-#HELP maxscale_status_backend_connections Backend_connections
-maxscale_status_backend_connections 0
-
-#TYPE maxscale_status_listeners gauge
-#HELP maxscale_status_listeners Listeners
-maxscale_status_listeners 5
-
-#TYPE maxscale_status_zombie_connections gauge
-#HELP maxscale_status_zombie_connections Zombie_connections
-maxscale_status_zombie_connections 0
-
-#TYPE maxscale_status_internal_descriptors gauge
-#HELP maxscale_status_internal_descriptors Internal_descriptors
-maxscale_status_internal_descriptors 1
-
-#TYPE maxscale_status_read_events counter
-#HELP maxscale_status_read_events Read_events
-maxscale_status_read_events 718
-
-#TYPE maxscale_status_write_events counter
-#HELP maxscale_status_write_events Write_events
-maxscale_status_write_events 1396
-
-#TYPE maxscale_status_hangup_events counter
-#HELP maxscale_status_hangup_events Hangup_events
-maxscale_status_hangup_events 0
-
-#TYPE maxscale_status_error_events counter
-#HELP maxscale_status_error_events Error_events
+# HELP maxscale_events_executed_seconds Amount of events executed
+# TYPE maxscale_events_executed_seconds histogram
+maxscale_events_executed_seconds_bucket{le="0.1"} 999041
+maxscale_events_executed_seconds_bucket{le="0.2"} 337
+maxscale_events_executed_seconds_bucket{le="0.3"} 0
+maxscale_events_executed_seconds_bucket{le="0.4"} 0
+maxscale_events_executed_seconds_bucket{le="0.5"} 0
+maxscale_events_executed_seconds_bucket{le="0.6"} 0
+maxscale_events_executed_seconds_bucket{le="0.7"} 0
+maxscale_events_executed_seconds_bucket{le="0.8"} 0
+maxscale_events_executed_seconds_bucket{le="0.9"} 0
+maxscale_events_executed_seconds_bucket{le="1"} 0
+maxscale_events_executed_seconds_bucket{le="1.1"} 0
+maxscale_events_executed_seconds_bucket{le="1.2"} 0
+maxscale_events_executed_seconds_bucket{le="1.3"} 0
+maxscale_events_executed_seconds_bucket{le="1.4"} 0
+maxscale_events_executed_seconds_bucket{le="1.5"} 0
+maxscale_events_executed_seconds_bucket{le="1.6"} 0
+maxscale_events_executed_seconds_bucket{le="1.7"} 0
+maxscale_events_executed_seconds_bucket{le="1.8"} 0
+maxscale_events_executed_seconds_bucket{le="1.9"} 0
+maxscale_events_executed_seconds_bucket{le="2"} 0
+maxscale_events_executed_seconds_bucket{le="2.1"} 0
+maxscale_events_executed_seconds_bucket{le="2.2"} 0
+maxscale_events_executed_seconds_bucket{le="2.3"} 0
+maxscale_events_executed_seconds_bucket{le="2.4"} 0
+maxscale_events_executed_seconds_bucket{le="2.5"} 0
+maxscale_events_executed_seconds_bucket{le="2.6"} 0
+maxscale_events_executed_seconds_bucket{le="2.7"} 0
+maxscale_events_executed_seconds_bucket{le="2.8"} 0
+maxscale_events_executed_seconds_bucket{le="2.9"} 0
+maxscale_events_executed_seconds_bucket{le="+Inf"} 999378
+maxscale_events_executed_seconds_sum 99971.5
+maxscale_events_executed_seconds_count 999378
+# HELP maxscale_events_queued_seconds Amount of events queued
+# TYPE maxscale_events_queued_seconds histogram
+maxscale_events_queued_seconds_bucket{le="0.1"} 999306
+maxscale_events_queued_seconds_bucket{le="0.2"} 73
+maxscale_events_queued_seconds_bucket{le="0.3"} 0
+maxscale_events_queued_seconds_bucket{le="0.4"} 0
+maxscale_events_queued_seconds_bucket{le="0.5"} 0
+maxscale_events_queued_seconds_bucket{le="0.6"} 0
+maxscale_events_queued_seconds_bucket{le="0.7"} 0
+maxscale_events_queued_seconds_bucket{le="0.8"} 0
+maxscale_events_queued_seconds_bucket{le="0.9"} 0
+maxscale_events_queued_seconds_bucket{le="1"} 0
+maxscale_events_queued_seconds_bucket{le="1.1"} 0
+maxscale_events_queued_seconds_bucket{le="1.2"} 0
+maxscale_events_queued_seconds_bucket{le="1.3"} 0
+maxscale_events_queued_seconds_bucket{le="1.4"} 0
+maxscale_events_queued_seconds_bucket{le="1.5"} 0
+maxscale_events_queued_seconds_bucket{le="1.6"} 0
+maxscale_events_queued_seconds_bucket{le="1.7"} 0
+maxscale_events_queued_seconds_bucket{le="1.8"} 0
+maxscale_events_queued_seconds_bucket{le="1.9"} 0
+maxscale_events_queued_seconds_bucket{le="2"} 0
+maxscale_events_queued_seconds_bucket{le="2.1"} 0
+maxscale_events_queued_seconds_bucket{le="2.2"} 0
+maxscale_events_queued_seconds_bucket{le="2.3"} 0
+maxscale_events_queued_seconds_bucket{le="2.4"} 0
+maxscale_events_queued_seconds_bucket{le="2.5"} 0
+maxscale_events_queued_seconds_bucket{le="2.6"} 0
+maxscale_events_queued_seconds_bucket{le="2.7"} 0
+maxscale_events_queued_seconds_bucket{le="2.8"} 0
+maxscale_events_queued_seconds_bucket{le="2.9"} 0
+maxscale_events_queued_seconds_bucket{le="+Inf"} 999379
+maxscale_events_queued_seconds_sum 99945.20000000001
+maxscale_events_queued_seconds_count 999379
+# HELP maxscale_exporter_total_scrapes Current total MaxScale scrapes
+# TYPE maxscale_exporter_total_scrapes counter
+maxscale_exporter_total_scrapes 1
+# HELP maxscale_process_cpu_seconds_total Total user and system CPU time spent in seconds.
+# TYPE maxscale_process_cpu_seconds_total counter
+maxscale_process_cpu_seconds_total 70.98
+# HELP maxscale_process_max_fds Maximum number of open file descriptors.
+# TYPE maxscale_process_max_fds gauge
+maxscale_process_max_fds 65535
+# HELP maxscale_process_open_fds Number of open file descriptors.
+# TYPE maxscale_process_open_fds gauge
+maxscale_process_open_fds 49
+# HELP maxscale_process_resident_memory_bytes Resident memory size in bytes.
+# TYPE maxscale_process_resident_memory_bytes gauge
+maxscale_process_resident_memory_bytes 5.6098816e+07
+# HELP maxscale_process_start_time_seconds Start time of the process since unix epoch in seconds.
+# TYPE maxscale_process_start_time_seconds gauge
+maxscale_process_start_time_seconds 1.52275537227e+09
+# HELP maxscale_process_virtual_memory_bytes Virtual memory size in bytes.
+# TYPE maxscale_process_virtual_memory_bytes gauge
+maxscale_process_virtual_memory_bytes 5.81009408e+08
+# HELP maxscale_server_connections Amount of connections to the server
+# TYPE maxscale_server_connections gauge
+maxscale_server_connections{address="1.3.3.7",server="db0"} 11
+maxscale_server_connections{address="1.3.3.7",server="db1"} 6
+# HELP maxscale_server_up Is the server up
+# TYPE maxscale_server_up gauge
+maxscale_server_up{address="1.3.3.7",server="db0"} 1
+maxscale_server_up{address="1.3.3.8",server="db1"} 1
+# HELP maxscale_service_current_sessions Amount of sessions currently active
+# TYPE maxscale_service_current_sessions gauge
+maxscale_service_current_sessions{name="CLI",router="cli"} 1
+maxscale_service_current_sessions{name="MaxInfo",router="maxinfo"} 2
+maxscale_service_current_sessions{name="db0",router="readconnroute"} 12
+maxscale_service_current_sessions{name="db1",router="readconnroute"} 7
+# HELP maxscale_service_total_sessions Total amount of sessions
+# TYPE maxscale_service_total_sessions counter
+maxscale_service_total_sessions{name="CLI",router="cli"} 5558
+maxscale_service_total_sessions{name="MaxInfo",router="maxinfo"} 495
+maxscale_service_total_sessions{name="db0",router="readconnroute"} 771
+maxscale_service_total_sessions{name="db1",router="readconnroute"} 9
+# HELP maxscale_status_accept_events How many accept events happened
+# TYPE maxscale_status_accept_events counter
+maxscale_status_accept_events 6830
+# HELP maxscale_status_backend_connections How many backend connections there are
+# TYPE maxscale_status_backend_connections gauge
+maxscale_status_backend_connections 17
+# HELP maxscale_status_client_connections How many client connections there are
+# TYPE maxscale_status_client_connections gauge
+maxscale_status_client_connections 18
+# HELP maxscale_status_connections How many connections there are
+# TYPE maxscale_status_connections gauge
+maxscale_status_connections 39
+# HELP maxscale_status_error_events How many error events happened
+# TYPE maxscale_status_error_events counter
 maxscale_status_error_events 0
-
-#TYPE maxscale_status_accept_events counter
-#HELP maxscale_status_accept_events Accept_events
-maxscale_status_accept_events 718
-
-#TYPE maxscale_status_event_queue_length gauge
-#HELP maxscale_status_event_queue_length Event_queue_length
+# HELP maxscale_status_event_queue_length How long the event queue is
+# TYPE maxscale_status_event_queue_length gauge
 maxscale_status_event_queue_length 1
-
-#TYPE maxscale_status_pending_events gauge
-#HELP maxscale_status_pending_events Pending_events
-maxscale_status_pending_events 0
-
-#TYPE maxscale_status_max_event_queue_length gauge
-#HELP maxscale_status_max_event_queue_length Max_event_queue_length
-maxscale_status_max_event_queue_length 1
-
-#TYPE maxscale_status_max_event_queue_time gauge
-#HELP maxscale_status_max_event_queue_time Max_event_queue_time
-maxscale_status_max_event_queue_time 0
-
-#TYPE maxscale_status_max_event_execution_time gauge
-#HELP maxscale_status_max_event_execution_time Max_event_execution_time
+# HELP maxscale_status_hangup_events How many hangup events happened
+# TYPE maxscale_status_hangup_events counter
+maxscale_status_hangup_events 5817
+# HELP maxscale_status_internal_descriptors How many internal descriptors there are
+# TYPE maxscale_status_internal_descriptors gauge
+maxscale_status_internal_descriptors 35
+# HELP maxscale_status_listeners How many listeners there are
+# TYPE maxscale_status_listeners gauge
+maxscale_status_listeners 4
+# HELP maxscale_status_max_event_execution_time The max event execution time
+# TYPE maxscale_status_max_event_execution_time gauge
 maxscale_status_max_event_execution_time 1
+# HELP maxscale_status_max_event_queue_length The max length of the event queue
+# TYPE maxscale_status_max_event_queue_length gauge
+maxscale_status_max_event_queue_length 4
+# HELP maxscale_status_max_event_queue_time The max event queue time
+# TYPE maxscale_status_max_event_queue_time gauge
+maxscale_status_max_event_queue_time 1
+# HELP maxscale_status_pending_events How many events are pending
+# TYPE maxscale_status_pending_events gauge
+maxscale_status_pending_events 0
+# HELP maxscale_status_read_events How many read events happened
+# TYPE maxscale_status_read_events counter
+maxscale_status_read_events 985046
+# HELP maxscale_status_threadpool_threads How many threadpool threads there are
+# TYPE maxscale_status_threadpool_threads gauge
+maxscale_status_threadpool_threads 1
+# HELP maxscale_status_threads_connected How many threads are connected
+# TYPE maxscale_status_threads_connected gauge
+maxscale_status_threads_connected 22
+# HELP maxscale_status_threads_created How many threads have been created
+# TYPE maxscale_status_threads_created counter
+maxscale_status_threads_created 1
+# HELP maxscale_status_threads_running How many threads are running
+# TYPE maxscale_status_threads_running gauge
+maxscale_status_threads_running 1
+# HELP maxscale_status_uptime How long has the server been running
+# TYPE maxscale_status_uptime counter
+maxscale_status_uptime 79379
+# HELP maxscale_status_uptime_since_flush_status How long the server has been up since flush status
+# TYPE maxscale_status_uptime_since_flush_status counter
+maxscale_status_uptime_since_flush_status 79379
+# HELP maxscale_status_write_events How many write events happened
+# TYPE maxscale_status_write_events counter
+maxscale_status_write_events 992543
+# HELP maxscale_status_zombie_connections How many zombie connetions there are
+# TYPE maxscale_status_zombie_connections gauge
+maxscale_status_zombie_connections 0
+# HELP maxscale_up Was the last scrape of MaxScale successful?
+# TYPE maxscale_up gauge
+maxscale_up 1
+# HELP maxscale_variables_nbpolls MAXSCALE_NBPOLLS
+# TYPE maxscale_variables_nbpolls gauge
+maxscale_variables_nbpolls 3
+# HELP maxscale_variables_pollsleep MAXSCALE_POLLSLEEP
+# TYPE maxscale_variables_pollsleep gauge
+maxscale_variables_pollsleep 1000
+# HELP maxscale_variables_sessions MAXSCALE_SESSIONS
+# TYPE maxscale_variables_sessions gauge
+maxscale_variables_sessions 22
+# HELP maxscale_variables_thread MAXSCALE_THREADS
+# TYPE maxscale_variables_thread gauge
+maxscale_variables_thread 1
 
-#TYPE maxscale_variables_maxscale_threads gauge
-#HELP maxscale_variables_maxscale_threads MAXSCALE_THREADS
-maxscale_variables_maxscale_threads 1
-
-#TYPE maxscale_variables_maxscale_nbpolls gauge
-#HELP maxscale_variables_maxscale_nbpolls MAXSCALE_NBPOLLS
-maxscale_variables_maxscale_nbpolls 3
-
-#TYPE maxscale_variables_maxscale_pollsleep gauge
-#HELP maxscale_variables_maxscale_pollsleep MAXSCALE_POLLSLEEP
-maxscale_variables_maxscale_pollsleep 1000
-
-#TYPE maxscale_variables_maxscale_uptime counter
-#HELP maxscale_variables_maxscale_uptime MAXSCALE_UPTIME
-maxscale_variables_maxscale_uptime 812
-
-#TYPE maxscale_variables_maxscale_sessions gauge
-#HELP maxscale_variables_maxscale_sessions MAXSCALE_SESSIONS
-maxscale_variables_maxscale_sessions 6
-
-#TYPE maxscale_events_executed_seconds histogram
-#HELP maxscale_events_executed_seconds Events Executed
-maxscale_events_executed_seconds_bucket{le="0.100000"} 2103
-maxscale_events_executed_seconds_bucket{le="0.200000"} 2119
-maxscale_events_executed_seconds_bucket{le="0.300000"} 2119
-maxscale_events_executed_seconds_bucket{le="0.400000"} 2119
-maxscale_events_executed_seconds_bucket{le="0.500000"} 2119
-maxscale_events_executed_seconds_bucket{le="0.600000"} 2119
-maxscale_events_executed_seconds_bucket{le="0.700000"} 2119
-maxscale_events_executed_seconds_bucket{le="0.800000"} 2119
-maxscale_events_executed_seconds_bucket{le="0.900000"} 2119
-maxscale_events_executed_seconds_bucket{le="1.000000"} 2119
-maxscale_events_executed_seconds_bucket{le="1.100000"} 2119
-maxscale_events_executed_seconds_bucket{le="1.200000"} 2119
-maxscale_events_executed_seconds_bucket{le="1.300000"} 2119
-maxscale_events_executed_seconds_bucket{le="1.400000"} 2119
-maxscale_events_executed_seconds_bucket{le="1.500000"} 2119
-maxscale_events_executed_seconds_bucket{le="1.600000"} 2119
-maxscale_events_executed_seconds_bucket{le="1.700000"} 2119
-maxscale_events_executed_seconds_bucket{le="1.800000"} 2119
-maxscale_events_executed_seconds_bucket{le="1.900000"} 2119
-maxscale_events_executed_seconds_bucket{le="2.000000"} 2119
-maxscale_events_executed_seconds_bucket{le="2.100000"} 2119
-maxscale_events_executed_seconds_bucket{le="2.200000"} 2119
-maxscale_events_executed_seconds_bucket{le="2.300000"} 2119
-maxscale_events_executed_seconds_bucket{le="2.400000"} 2119
-maxscale_events_executed_seconds_bucket{le="2.500000"} 2119
-maxscale_events_executed_seconds_bucket{le="2.600000"} 2119
-maxscale_events_executed_seconds_bucket{le="2.700000"} 2119
-maxscale_events_executed_seconds_bucket{le="2.800000"} 2119
-maxscale_events_executed_seconds_bucket{le="2.900000"} 2119
-maxscale_events_executed_seconds_bucket{le="+Inf"} 2119
-maxscale_events_executed_seconds_sum 213
-maxscale_events_executed_seconds_count 2119
-
-#TYPE maxscale_events_queued_seconds histogram
-#HELP maxscale_events_queued_seconds Events Queued
-maxscale_events_queued_seconds_bucket{le="0.100000"} 2120
-maxscale_events_queued_seconds_bucket{le="0.200000"} 2120
-maxscale_events_queued_seconds_bucket{le="0.300000"} 2120
-maxscale_events_queued_seconds_bucket{le="0.400000"} 2120
-maxscale_events_queued_seconds_bucket{le="0.500000"} 2120
-maxscale_events_queued_seconds_bucket{le="0.600000"} 2120
-maxscale_events_queued_seconds_bucket{le="0.700000"} 2120
-maxscale_events_queued_seconds_bucket{le="0.800000"} 2120
-maxscale_events_queued_seconds_bucket{le="0.900000"} 2120
-maxscale_events_queued_seconds_bucket{le="1.000000"} 2120
-maxscale_events_queued_seconds_bucket{le="1.100000"} 2120
-maxscale_events_queued_seconds_bucket{le="1.200000"} 2120
-maxscale_events_queued_seconds_bucket{le="1.300000"} 2120
-maxscale_events_queued_seconds_bucket{le="1.400000"} 2120
-maxscale_events_queued_seconds_bucket{le="1.500000"} 2120
-maxscale_events_queued_seconds_bucket{le="1.600000"} 2120
-maxscale_events_queued_seconds_bucket{le="1.700000"} 2120
-maxscale_events_queued_seconds_bucket{le="1.800000"} 2120
-maxscale_events_queued_seconds_bucket{le="1.900000"} 2120
-maxscale_events_queued_seconds_bucket{le="2.000000"} 2120
-maxscale_events_queued_seconds_bucket{le="2.100000"} 2120
-maxscale_events_queued_seconds_bucket{le="2.200000"} 2120
-maxscale_events_queued_seconds_bucket{le="2.300000"} 2120
-maxscale_events_queued_seconds_bucket{le="2.400000"} 2120
-maxscale_events_queued_seconds_bucket{le="2.500000"} 2120
-maxscale_events_queued_seconds_bucket{le="2.600000"} 2120
-maxscale_events_queued_seconds_bucket{le="2.700000"} 2120
-maxscale_events_queued_seconds_bucket{le="2.800000"} 2120
-maxscale_events_queued_seconds_bucket{le="2.900000"} 2120
-maxscale_events_queued_seconds_bucket{le="+Inf"} 2120
-maxscale_events_queued_seconds_sum 212
-maxscale_events_queued_seconds_count 2120
 ```
