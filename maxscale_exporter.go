@@ -19,6 +19,7 @@ import (
 const (
 	envPrefix   = "MAXSCALE_EXPORTER"
 	metricsPath = "/metrics"
+	namespace   = "maxscale"
 )
 
 // Flags for CLI invocation
@@ -28,7 +29,21 @@ var (
 	pidfile *string
 )
 
-const namespace = "maxscale"
+// Maxscale defined status
+const (
+	SERVER_RUNNING                  = 0x0001 // The server is up and running
+	SERVER_MASTER                   = 0x0002 // The server is a master, i.e. can handle writes
+	SERVER_SLAVE                    = 0x0004 // The server is a slave, i.e. can handle reads
+	SERVER_JOINED                   = 0x0008 // The server is joined in a Galera cluster
+	SERVER_NDB                      = 0x0010 // The server is part of a MySQL cluster setup
+	SERVER_MAINT                    = 0x0020 // Server is in maintenance mode
+	SERVER_SLAVE_OF_EXTERNAL_MASTER = 0x0040 // Server is slave of a Master outside the provided replication topology
+	SERVER_STALE_STATUS             = 0x0080 // Server stale status, monitor didn't update it
+	SERVER_MASTER_STICKINESS        = 0x0100 // Server Master stickiness
+	SERVER_AUTH_ERROR               = 0x1000 // Authentication error from monitor
+	SERVER_STALE_SLAVE              = 0x2000 // Slave status is possible even without a master
+	SERVER_RELAY_MASTER             = 0x4000 // Server is a relay master
+)
 
 type MaxScale struct {
 	Address         string
@@ -251,15 +266,44 @@ func (m *MaxScale) getStatistics(path string, v interface{}) error {
 }
 
 func serverUp(status string) float64 {
-	switch status {
-	case "Down":
-		return 0
-	case "Running":
-		return 1
-	default:
-		// Unsure about other status messages, return false just in case
-		return 0
+	var bitwise uint64 = 0
+	for _, s := range strings.Split(status, ", ") {
+		switch s {
+		case "Maintenance":
+			bitwise |= SERVER_MAINT
+		case "Master":
+			bitwise |= SERVER_MASTER
+
+		case "Relay Master":
+			bitwise |= SERVER_RELAY_MASTER
+
+		case "Slave":
+			bitwise |= SERVER_SLAVE
+
+		case "Synced":
+			bitwise |= SERVER_JOINED
+
+		case "NDB":
+			bitwise |= SERVER_NDB
+
+		case "Slave of External Server":
+			bitwise |= SERVER_SLAVE_OF_EXTERNAL_MASTER
+
+		case "Master Stickiness":
+			bitwise |= SERVER_MASTER_STICKINESS
+
+		case "Auth Error":
+			bitwise |= SERVER_AUTH_ERROR
+
+		case "Running":
+			bitwise |= SERVER_RUNNING
+
+		case "Down":
+			bitwise = 0
+		}
 	}
+
+	return float64(bitwise)
 }
 
 func (m *MaxScale) parseServers(ch chan<- prometheus.Metric) error {
