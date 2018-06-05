@@ -31,6 +31,7 @@ var (
 
 // Maxscale defined status
 const (
+	SERVER_DOWN                     = 0x0000 // The server is down
 	SERVER_RUNNING                  = 0x0001 // The server is up and running
 	SERVER_MASTER                   = 0x0002 // The server is a master, i.e. can handle writes
 	SERVER_SLAVE                    = 0x0004 // The server is a slave, i.e. can handle reads
@@ -93,11 +94,12 @@ type Metric struct {
 }
 
 var (
-	serverLabelNames    = []string{"server", "address"}
-	serviceLabelNames   = []string{"name", "router"}
-	statusLabelNames    = []string{}
-	variablesLabelNames = []string{}
-	eventLabelNames     = []string{}
+	serverLabelNames       = []string{"server", "address"}
+	serverStatusLabelNames = []string{"server", "address", "state"}
+	serviceLabelNames      = []string{"name", "router"}
+	statusLabelNames       = []string{}
+	variablesLabelNames    = []string{}
+	eventLabelNames        = []string{}
 )
 
 type metrics map[string]Metric
@@ -114,6 +116,7 @@ var (
 	serverMetrics = metrics{
 		"server_connections": newDesc("server", "connections", "Amount of connections to the server", serverLabelNames, prometheus.GaugeValue),
 		"server_up":          newDesc("server", "up", "Is the server up", serverLabelNames, prometheus.GaugeValue),
+		"server_status":      newDesc("server", "status", "Status of the Current Server", serverStatusLabelNames, prometheus.GaugeValue),
 	}
 	serviceMetrics = metrics{
 		"service_current_sessions": newDesc("service", "current_sessions", "Amount of sessions currently active", serviceLabelNames, prometheus.GaugeValue),
@@ -265,12 +268,12 @@ func (m *MaxScale) getStatistics(path string, v interface{}) error {
 	return json.Unmarshal(data, v)
 }
 
-func serverUp(status string) float64 {
-	var bitwise uint64 = 0
+func serverStatus(status string) (bitwise uint64) {
 	for _, s := range strings.Split(status, ", ") {
 		switch s {
 		case "Maintenance":
 			bitwise |= SERVER_MAINT
+
 		case "Master":
 			bitwise |= SERVER_MASTER
 
@@ -303,7 +306,18 @@ func serverUp(status string) float64 {
 		}
 	}
 
-	return float64(bitwise)
+	return bitwise
+}
+
+func checkStatus(status uint64, state uint64) float64 {
+	if status == 0 && state == 0 {
+		return 1
+	}
+
+	if status&state == state && state != 0 {
+		return 1
+	}
+	return 0
 }
 
 func (m *MaxScale) parseServers(ch chan<- prometheus.Metric) error {
@@ -315,6 +329,8 @@ func (m *MaxScale) parseServers(ch chan<- prometheus.Metric) error {
 	}
 
 	for _, server := range servers {
+		status := serverStatus(server.Status)
+
 		connectionsMetric := m.serverMetrics["server_connections"]
 		ch <- prometheus.MustNewConstMetric(
 			connectionsMetric.Desc,
@@ -327,9 +343,88 @@ func (m *MaxScale) parseServers(ch chan<- prometheus.Metric) error {
 		ch <- prometheus.MustNewConstMetric(
 			upMetric.Desc,
 			upMetric.ValueType,
-			serverUp(server.Status),
+			checkStatus(status, SERVER_RUNNING),
 			server.Server, server.Address,
 		)
+
+		statusMetric := m.serverMetrics["server_status"]
+		ch <- prometheus.MustNewConstMetric(
+			statusMetric.Desc,
+			statusMetric.ValueType,
+			checkStatus(status, SERVER_MAINT),
+			server.Server, server.Address, "maintenance",
+		)
+
+		ch <- prometheus.MustNewConstMetric(
+			statusMetric.Desc,
+			statusMetric.ValueType,
+			checkStatus(status, SERVER_MASTER),
+			server.Server, server.Address, "master",
+		)
+
+		ch <- prometheus.MustNewConstMetric(
+			statusMetric.Desc,
+			statusMetric.ValueType,
+			checkStatus(status, SERVER_RELAY_MASTER),
+			server.Server, server.Address, "relay_master",
+		)
+
+		ch <- prometheus.MustNewConstMetric(
+			statusMetric.Desc,
+			statusMetric.ValueType,
+			checkStatus(status, SERVER_SLAVE),
+			server.Server, server.Address, "slave",
+		)
+
+		ch <- prometheus.MustNewConstMetric(
+			statusMetric.Desc,
+			statusMetric.ValueType,
+			checkStatus(status, SERVER_JOINED),
+			server.Server, server.Address, "synced",
+		)
+
+		ch <- prometheus.MustNewConstMetric(
+			statusMetric.Desc,
+			statusMetric.ValueType,
+			checkStatus(status, SERVER_NDB),
+			server.Server, server.Address, "nbd",
+		)
+
+		ch <- prometheus.MustNewConstMetric(
+			statusMetric.Desc,
+			statusMetric.ValueType,
+			checkStatus(status, SERVER_SLAVE_OF_EXTERNAL_MASTER),
+			server.Server, server.Address, "slave_of_external_master",
+		)
+
+		ch <- prometheus.MustNewConstMetric(
+			statusMetric.Desc,
+			statusMetric.ValueType,
+			checkStatus(status, SERVER_MASTER_STICKINESS),
+			server.Server, server.Address, "master_stickiness",
+		)
+
+		ch <- prometheus.MustNewConstMetric(
+			statusMetric.Desc,
+			statusMetric.ValueType,
+			checkStatus(status, SERVER_AUTH_ERROR),
+			server.Server, server.Address, "auth_error",
+		)
+
+		ch <- prometheus.MustNewConstMetric(
+			statusMetric.Desc,
+			statusMetric.ValueType,
+			checkStatus(status, SERVER_RUNNING),
+			server.Server, server.Address, "running",
+		)
+
+		ch <- prometheus.MustNewConstMetric(
+			statusMetric.Desc,
+			statusMetric.ValueType,
+			checkStatus(status, SERVER_DOWN),
+			server.Server, server.Address, "down",
+		)
+
 	}
 
 	return nil
