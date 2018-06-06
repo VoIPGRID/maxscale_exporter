@@ -95,6 +95,7 @@ type Metric struct {
 
 var (
 	serverLabelNames       = []string{"server", "address"}
+	serverUpLabelNames     = []string{"server", "address", "status"}
 	serverStatusLabelNames = []string{"server", "address", "state"}
 	serviceLabelNames      = []string{"name", "router"}
 	statusLabelNames       = []string{}
@@ -115,7 +116,7 @@ func newDesc(subsystem string, name string, help string, variableLabels []string
 var (
 	serverMetrics = metrics{
 		"server_connections": newDesc("server", "connections", "Amount of connections to the server", serverLabelNames, prometheus.GaugeValue),
-		"server_up":          newDesc("server", "up", "Is the server up", serverLabelNames, prometheus.GaugeValue),
+		"server_up":          newDesc("server", "up", "Is the server up", serverUpLabelNames, prometheus.GaugeValue),
 		"server_status":      newDesc("server", "status", "Status of the Current Server", serverStatusLabelNames, prometheus.GaugeValue),
 	}
 	serviceMetrics = metrics{
@@ -339,12 +340,16 @@ func (m *MaxScale) parseServers(ch chan<- prometheus.Metric) error {
 			server.Server, server.Address,
 		)
 
+		// We surround the separated list with the separator as well. This way regular expressions
+		// in labeling don't have to consider satus positions.
+		normalizedStatus := "," + strings.Replace(server.Status, ", ", ",", -1) + ","
+
 		upMetric := m.serverMetrics["server_up"]
 		ch <- prometheus.MustNewConstMetric(
 			upMetric.Desc,
 			upMetric.ValueType,
 			checkStatus(status, SERVER_RUNNING),
-			server.Server, server.Address,
+			server.Server, server.Address, normalizedStatus,
 		)
 
 		statusMetric := m.serverMetrics["server_status"]
