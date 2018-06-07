@@ -19,6 +19,7 @@ import (
 const (
 	envPrefix   = "MAXSCALE_EXPORTER"
 	metricsPath = "/metrics"
+	namespace   = "maxscale"
 )
 
 // Flags for CLI invocation
@@ -27,8 +28,6 @@ var (
 	port    *string
 	pidfile *string
 )
-
-const namespace = "maxscale"
 
 type MaxScale struct {
 	Address         string
@@ -79,6 +78,7 @@ type Metric struct {
 
 var (
 	serverLabelNames    = []string{"server", "address"}
+	serverUpLabelNames  = []string{"server", "address", "status"}
 	serviceLabelNames   = []string{"name", "router"}
 	statusLabelNames    = []string{}
 	variablesLabelNames = []string{}
@@ -98,7 +98,7 @@ func newDesc(subsystem string, name string, help string, variableLabels []string
 var (
 	serverMetrics = metrics{
 		"server_connections": newDesc("server", "connections", "Amount of connections to the server", serverLabelNames, prometheus.GaugeValue),
-		"server_up":          newDesc("server", "up", "Is the server up", serverLabelNames, prometheus.GaugeValue),
+		"server_up":          newDesc("server", "up", "Is the server up", serverUpLabelNames, prometheus.GaugeValue),
 	}
 	serviceMetrics = metrics{
 		"service_current_sessions": newDesc("service", "current_sessions", "Amount of sessions currently active", serviceLabelNames, prometheus.GaugeValue),
@@ -251,15 +251,13 @@ func (m *MaxScale) getStatistics(path string, v interface{}) error {
 }
 
 func serverUp(status string) float64 {
-	switch status {
-	case "Down":
-		return 0
-	case "Running":
-		return 1
-	default:
-		// Unsure about other status messages, return false just in case
+	if strings.Contains(status, ",Down,") {
 		return 0
 	}
+	if strings.Contains(status, ",Running,") {
+		return 1
+	}
+	return 0
 }
 
 func (m *MaxScale) parseServers(ch chan<- prometheus.Metric) error {
@@ -279,12 +277,16 @@ func (m *MaxScale) parseServers(ch chan<- prometheus.Metric) error {
 			server.Server, server.Address,
 		)
 
+		// We surround the separated list with the separator as well. This way regular expressions
+		// in labeling don't have to consider satus positions.
+		normalizedStatus := "," + strings.Replace(server.Status, ", ", ",", -1) + ","
+
 		upMetric := m.serverMetrics["server_up"]
 		ch <- prometheus.MustNewConstMetric(
 			upMetric.Desc,
 			upMetric.ValueType,
-			serverUp(server.Status),
-			server.Server, server.Address,
+			serverUp(normalizedStatus),
+			server.Server, server.Address, normalizedStatus,
 		)
 	}
 
