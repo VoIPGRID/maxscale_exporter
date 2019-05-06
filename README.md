@@ -12,7 +12,7 @@ Your MaxScale instance needs to have the JSON HTTP listener enabled so this can 
 ## Installation
 Quite simple: get [Go](https://golang.org/dl), set a `$GOPATH`, and run
 
-    go get github.com/wearespindle/maxscale_exporter
+    go get github.com/mariadb-corporation/maxscale_exporter
 
 ## Use
 Make sure `$GOPATH/bin` is in your `$PATH`.
