@@ -1,7 +1,3 @@
-# Repo Moved!
-
-This repo has been deprecated and is this project is now maintained at [mariadb-corporation/maxscale_exporter](https://github.com/mariadb-corporation/maxscale_exporter)
-
 ## Overview
 This exports the following MaxScale metrics for Prometheus:
 
