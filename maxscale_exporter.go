@@ -43,21 +43,21 @@ type MaxScale struct {
 type Server struct {
 	Server      string
 	Address     string
-	Port        int
-	Connections float64
+	Port        int     `json:",string"`
+	Connections float64 `json:",string"`
 	Status      string
 }
 
 type Service struct {
 	Name          string  `json:"Service Name"`
 	Router        string  `json:"Router Module"`
-	Sessions      float64 `json:"No. Sessions"`
-	TotalSessions float64 `json:"Total Sessions"`
+	Sessions      float64 `json:"No. Sessions,string"`
+	TotalSessions float64 `json:"Total Sessions,string"`
 }
 
 type Status struct {
 	Name  string  `json:"Variable_name"`
-	Value float64 `json:"Value"`
+	Value float64 `json:"Value,string"`
 }
 
 type Variable struct {
@@ -67,8 +67,8 @@ type Variable struct {
 
 type Event struct {
 	Duration string `json:"Duration"`
-	Queued   uint64 `json:"No. Events Queued"`
-	Executed uint64 `json:"No. Events Executed"`
+	Queued   uint64 `json:"No. Events Queued,string"`
+	Executed uint64 `json:"No. Events Executed,string"`
 }
 
 type Metric struct {
@@ -124,6 +124,7 @@ var (
 		"status_error_events":              newDesc("status", "error_events", "How many error events happened", statusLabelNames, prometheus.CounterValue),
 		"status_accept_events":             newDesc("status", "accept_events", "How many accept events happened", statusLabelNames, prometheus.CounterValue),
 		"status_event_queue_length":        newDesc("status", "event_queue_length", "How long the event queue is", statusLabelNames, prometheus.GaugeValue),
+		"status_avg_event_queue_length":    newDesc("status", "avg_event_queue_length", "The average length of the event queue", statusLabelNames, prometheus.GaugeValue),
 		"status_max_event_queue_length":    newDesc("status", "max_event_queue_length", "The max length of the event queue", statusLabelNames, prometheus.GaugeValue),
 		"status_max_event_queue_time":      newDesc("status", "max_event_queue_time", "The max event queue time", statusLabelNames, prometheus.GaugeValue),
 		"status_max_event_execution_time":  newDesc("status", "max_event_execution_time", "The max event execution time", statusLabelNames, prometheus.GaugeValue),
