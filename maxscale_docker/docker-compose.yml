@@ -1,0 +1,25 @@
+version: "3"
+services:
+  maxscale-2.1:
+    build: 
+      context: ./
+      args:
+        version: 2.1.11
+    volumes:
+      - ./maxscale.cnf.d:/etc/maxscale.cnf.d
+    ports:
+      - "4006:4006" # readwrite port
+      - "4008:4008" # readonly port
+      - "4442:4442" # debug listener
+      - "8989:8989" # REST API port
+      - "8003:8003" # Info port
+  maxscale-2.3:
+    image: mariadb/maxscale:2.3.11
+    volumes:
+      - ./maxscale.cnf:/etc/maxscale.cnf
+    ports:
+      - "4006:4006" # readwrite port
+      - "4008:4008" # readonly port
+      - "4442:4442" # debug listener
+      - "8989:8989" # REST API port
+      - "8003:8003" # Info port
