@@ -43,21 +43,21 @@ type MaxScale struct {
 type Server struct {
 	Server      string
 	Address     string
-	Port        int     `json:",string"`
-	Connections float64 `json:",string"`
+	Port        json.Number
+	Connections json.Number
 	Status      string
 }
 
 type Service struct {
-	Name          string  `json:"Service Name"`
-	Router        string  `json:"Router Module"`
-	Sessions      float64 `json:"No. Sessions,string"`
-	TotalSessions float64 `json:"Total Sessions,string"`
+	Name          string      `json:"Service Name"`
+	Router        string      `json:"Router Module"`
+	Sessions      json.Number `json:"No. Sessions,num_integer"`
+	TotalSessions json.Number `json:"Total Sessions,num_integer"`
 }
 
 type Status struct {
-	Name  string  `json:"Variable_name"`
-	Value float64 `json:"Value,string"`
+	Name  string      `json:"Variable_name"`
+	Value json.Number `json:"Value,num_integer"`
 }
 
 type Variable struct {
@@ -66,9 +66,9 @@ type Variable struct {
 }
 
 type Event struct {
-	Duration string `json:"Duration"`
-	Queued   uint64 `json:"No. Events Queued,string"`
-	Executed uint64 `json:"No. Events Executed,string"`
+	Duration string      `json:"Duration"`
+	Queued   json.Number `json:"No. Events Queued,num_integer"`
+	Executed json.Number `json:"No. Events Executed,num_integer"`
 }
 
 type Metric struct {
@@ -271,10 +271,16 @@ func (m *MaxScale) parseServers(ch chan<- prometheus.Metric) error {
 
 	for _, server := range servers {
 		connectionsMetric := m.serverMetrics["server_connections"]
+
+		value, err := json.Number.Float64(server.Connections)
+		if err != nil {
+			return err
+		}
+
 		ch <- prometheus.MustNewConstMetric(
 			connectionsMetric.Desc,
 			connectionsMetric.ValueType,
-			server.Connections,
+			value,
 			server.Server, server.Address,
 		)
 
@@ -303,19 +309,29 @@ func (m *MaxScale) parseServices(ch chan<- prometheus.Metric) error {
 	}
 
 	for _, service := range services {
+		valueCurrentSessions, err := json.Number.Float64(service.Sessions)
+		if err != nil {
+			return err
+		}
+
 		currentSessions := m.serviceMetrics["service_current_sessions"]
 		ch <- prometheus.MustNewConstMetric(
 			currentSessions.Desc,
 			currentSessions.ValueType,
-			service.Sessions,
+			valueCurrentSessions,
 			service.Name, service.Router,
 		)
+
+		valueTotalSessions, err := json.Number.Float64(service.TotalSessions)
+		if err != nil {
+			return err
+		}
 
 		totalSessions := m.serviceMetrics["service_sessions_total"]
 		ch <- prometheus.MustNewConstMetric(
 			totalSessions.Desc,
 			totalSessions.ValueType,
-			service.TotalSessions,
+			valueTotalSessions,
 			service.Name, service.Router,
 		)
 	}
@@ -334,15 +350,22 @@ func (m *MaxScale) parseStatus(ch chan<- prometheus.Metric) error {
 	for _, element := range status {
 		metricName := "status_" + strings.ToLower(element.Name)
 		metric := m.statusMetrics[metricName]
+
+		value, err := json.Number.Float64(element.Value)
+		if err != nil {
+			return err
+		}
+
 		ch <- prometheus.MustNewConstMetric(
 			metric.Desc,
 			metric.ValueType,
-			element.Value,
+			value,
 		)
 	}
 
 	return nil
 }
+
 func (m *MaxScale) parseVariables(ch chan<- prometheus.Metric) error {
 	var variables []Variable
 	err := m.getStatistics("/variables", &variables)
@@ -369,6 +392,7 @@ func (m *MaxScale) parseVariables(ch chan<- prometheus.Metric) error {
 
 	return nil
 }
+
 func (m *MaxScale) parseEvents(ch chan<- prometheus.Metric) error {
 	var events []Event
 	err := m.getStatistics("/event/times", &events)
@@ -412,12 +436,18 @@ func (m *MaxScale) parseEvents(ch chan<- prometheus.Metric) error {
 	executedCount := uint64(0)
 	executedTime := 0.1
 	for _, element := range events {
-		executedCount += element.Executed
-		executedSum = executedSum + (float64(element.Executed) * executedTime)
+		executedInt, err := json.Number.Int64(element.Executed)
+		if err != nil {
+			return err
+		}
+
+		executed := uint64(executedInt)
+		executedCount += executed
+		executedSum = executedSum + (float64(executed) * executedTime)
 		executedTime += 0.1
 		switch element.Duration {
 		case "< 100ms":
-			eventExecutedBuckets[0.1] = element.Executed
+			eventExecutedBuckets[0.1] = executed
 		case "> 3000ms":
 			// Do nothing as these will get accumulated in the +Inf bucket
 		default:
@@ -425,7 +455,7 @@ func (m *MaxScale) parseEvents(ch chan<- prometheus.Metric) error {
 			ad := strings.Trim(durationf[len(durationf)-1], "ms")
 			milliseconds, _ := strconv.ParseFloat(ad, 64)
 			seconds := milliseconds / 1000
-			eventExecutedBuckets[seconds] = element.Executed
+			eventExecutedBuckets[seconds] = executed
 		}
 	}
 
@@ -479,12 +509,18 @@ func (m *MaxScale) parseEvents(ch chan<- prometheus.Metric) error {
 	queuedCount := uint64(0)
 	queuedTime := 0.1
 	for _, element := range events {
-		queuedCount += element.Queued
-		queuedSum = queuedSum + (float64(element.Queued) * queuedTime)
+		queuedInt, err := json.Number.Int64(element.Queued)
+		if err != nil {
+			return err
+		}
+
+		queued := uint64(queuedInt)
+		queuedCount += queued
+		queuedSum = queuedSum + (float64(queued) * queuedTime)
 		queuedTime += 0.1
 		switch element.Duration {
 		case "< 100ms":
-			eventQueuedBuckets[0.1] = element.Queued
+			eventQueuedBuckets[0.1] = queued
 		case "> 3000ms":
 			// Do nothing as this gets accumulated in the +Inf bucket
 		default:
@@ -492,7 +528,7 @@ func (m *MaxScale) parseEvents(ch chan<- prometheus.Metric) error {
 			ad := strings.Trim(durationf[len(durationf)-1], "ms")
 			milliseconds, _ := strconv.ParseFloat(ad, 64)
 			seconds := milliseconds / 1000
-			eventQueuedBuckets[seconds] = element.Queued
+			eventQueuedBuckets[seconds] = queued
 		}
 	}
 
