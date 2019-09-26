@@ -9,6 +9,8 @@ This exports the following MaxScale metrics for Prometheus:
 ### Requirements:
 Your MaxScale instance needs to have the JSON HTTP listener enabled so this can pull the stats from your MaxScale server. You can read [here](https://mariadb.com/kb/en/mariadb-enterprise/mariadb-maxscale-14/maxinfo-plugin/#configuration) how to set this up.
 
+**NOTE:** This will work with all MaxScale versions < 2.4. For MaxScale versions > 2.4, you should use the [maxctrl_exporter](https://github.com/Vetal1977/maxctrl_exporter). This is due to support being dropped for the MaxAdmin & MaxInfo in the newer versions.
+
 ## Installation
 Quite simple: get [Go](https://golang.org/dl), set a `$GOPATH`, and run
 
