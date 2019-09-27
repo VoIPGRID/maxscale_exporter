@@ -1,3 +1,5 @@
+[![Docker Pulls](https://img.shields.io/docker/pulls/rubenhoms/maxscale_exporter.svg)](https://hub.docker.com/r/rubenhoms/maxscale_exporter/)
+
 ## Overview
 This exports the following MaxScale metrics for Prometheus:
 
