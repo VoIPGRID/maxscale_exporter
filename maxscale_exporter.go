@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	envPrefix   = "MAXSCALE_EXPORTER"
+	envPrefix   = "MAXSCALE_EXPORTER_"
 	metricsPath = "/metrics"
 	namespace   = "maxscale"
 )
