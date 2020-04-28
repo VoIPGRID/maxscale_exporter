@@ -1,5 +1,5 @@
-[![Docker Pulls](https://img.shields.io/docker/pulls/rubenhoms/maxscale_exporter.svg)](https://hub.docker.com/r/rubenhoms/maxscale_exporter/)
-[![Docker build](https://img.shields.io/docker/cloud/build/rubenhoms/maxscale_exporter)](https://hub.docker.com/r/rubenhoms/maxscale_exporter/builds)
+[![Docker Pulls](https://img.shields.io/docker/pulls/VoIPGRID/maxscale_exporter.svg)](https://hub.docker.com/r/VoIPGRID/maxscale_exporter/)
+[![Docker build](https://img.shields.io/docker/cloud/build/VoIPGRID/maxscale_exporter)](https://hub.docker.com/r/VoIPGRID/maxscale_exporter/builds)
 
 ## Overview
 This exports the following MaxScale metrics for Prometheus:
@@ -17,7 +17,7 @@ Your MaxScale instance needs to have the JSON HTTP listener enabled so this can 
 ## Installation
 Quite simple: get [Go](https://golang.org/dl), set a `$GOPATH`, and run
 
-    go get github.com/RubenHoms/maxscale_exporter
+    go get github.com/VoIPGRID/maxscale_exporter
 
 ## Use
 Make sure `$GOPATH/bin` is in your `$PATH`.

@@ -4,7 +4,7 @@ WORKDIR /go/src/app
 COPY . .
 RUN go get -d -v ./...
 RUN go install -v ./...
-RUN go get github.com/RubenHoms/maxscale_exporter
+RUN go get github.com/VoIPGRID/maxscale_exporter
 RUN make build
 
 FROM alpine:3.10
