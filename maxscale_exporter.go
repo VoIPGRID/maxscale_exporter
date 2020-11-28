@@ -576,8 +576,9 @@ func main() {
 
 	if *pidfile != "" {
 		log.Printf("Parsing PID file located at %v", *pidfile)
-		procExporter := prometheus.NewProcessCollectorPIDFn(
-			func() (int, error) {
+		procExporter := prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{
+			Namespace: namespace,
+			PidFn: func() (int, error) {
 				content, err := ioutil.ReadFile(*pidfile)
 				if err != nil {
 					log.Printf("Can't read PID file: %s", err)
@@ -589,7 +590,8 @@ func main() {
 					return 0, fmt.Errorf("Can't parse pid file: %s", err)
 				}
 				return value, nil
-			}, namespace)
+			},
+		})
 		prometheus.MustRegister(procExporter)
 	}
 
