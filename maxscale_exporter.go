@@ -87,12 +87,13 @@ var (
 
 type metrics map[string]Metric
 
-func newDesc(subsystem string, name string, help string, variableLabels []string, t prometheus.ValueType) Metric {
+func newDesc(subsystem, name, help string, variableLabels []string, t prometheus.ValueType) Metric {
 	return Metric{
 		prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, subsystem, name),
 			help, variableLabels, nil,
-		), t}
+		), t,
+	}
 }
 
 var (
@@ -198,7 +199,7 @@ func (m *MaxScale) Describe(ch chan<- *prometheus.Desc) {
 func (m *MaxScale) Collect(ch chan<- prometheus.Metric) {
 	m.totalScrapes.Inc()
 
-	var parseErrors = false
+	parseErrors := false
 
 	if err := m.parseServers(ch); err != nil {
 		parseErrors = true
@@ -236,16 +237,15 @@ func (m *MaxScale) Collect(ch chan<- prometheus.Metric) {
 
 func (m *MaxScale) getStatistics(path string, v interface{}) error {
 	resp, err := http.Get("http://" + m.Address + path)
-
 	if err != nil {
-		return fmt.Errorf("Error while getting %v: %v\n", path, err)
+		return fmt.Errorf("error while getting %v: %w", path, err)
 	}
 
 	jsonDataFromHttp, err := ioutil.ReadAll(resp.Body)
 	data := bytes.Replace(jsonDataFromHttp, []byte("NULL"), []byte("null"), -1)
 
 	if err != nil {
-		return fmt.Errorf("Error while reading response from %v: %v\n", path, err)
+		return fmt.Errorf("error while reading response from %v: %w", path, err)
 	}
 
 	return json.Unmarshal(data, v)
@@ -264,7 +264,6 @@ func serverUp(status string) float64 {
 func (m *MaxScale) parseServers(ch chan<- prometheus.Metric) error {
 	var servers []Server
 	err := m.getStatistics("/servers", &servers)
-
 	if err != nil {
 		return err
 	}
@@ -303,7 +302,6 @@ func (m *MaxScale) parseServers(ch chan<- prometheus.Metric) error {
 func (m *MaxScale) parseServices(ch chan<- prometheus.Metric) error {
 	var services []Service
 	err := m.getStatistics("/services", &services)
-
 	if err != nil {
 		return err
 	}
@@ -342,7 +340,6 @@ func (m *MaxScale) parseServices(ch chan<- prometheus.Metric) error {
 func (m *MaxScale) parseStatus(ch chan<- prometheus.Metric) error {
 	var status []Status
 	err := m.getStatistics("/status", &status)
-
 	if err != nil {
 		return err
 	}
@@ -369,7 +366,6 @@ func (m *MaxScale) parseStatus(ch chan<- prometheus.Metric) error {
 func (m *MaxScale) parseVariables(ch chan<- prometheus.Metric) error {
 	var variables []Variable
 	err := m.getStatistics("/variables", &variables)
-
 	if err != nil {
 		return err
 	}
@@ -396,7 +392,6 @@ func (m *MaxScale) parseVariables(ch chan<- prometheus.Metric) error {
 func (m *MaxScale) parseEvents(ch chan<- prometheus.Metric) error {
 	var events []Event
 	err := m.getStatistics("/event/times", &events)
-
 	if err != nil {
 		return err
 	}
@@ -443,7 +438,7 @@ func (m *MaxScale) parseEvents(ch chan<- prometheus.Metric) error {
 
 		executed := uint64(executedInt)
 		executedCount += executed
-		executedSum = executedSum + (float64(executed) * executedTime)
+		executedSum += (float64(executed) * executedTime)
 		executedTime += 0.1
 		switch element.Duration {
 		case "< 100ms":
@@ -516,7 +511,7 @@ func (m *MaxScale) parseEvents(ch chan<- prometheus.Metric) error {
 
 		queued := uint64(queuedInt)
 		queuedCount += queued
-		queuedSum = queuedSum + (float64(queued) * queuedTime)
+		queuedSum += (float64(queued) * queuedTime)
 		queuedTime += 0.1
 		switch element.Duration {
 		case "< 100ms":
@@ -552,7 +547,7 @@ func (m *MaxScale) parseEvents(ch chan<- prometheus.Metric) error {
 // strflag is like flag.String, with value overridden by an environment
 // variable (when present). e.g. with address, the env var used as default
 // is MAXSCALE_EXPORTER_ADDRESS, if present in env.
-func strflag(name string, value string, usage string) *string {
+func strflag(name, value, usage string) *string {
 	if v, ok := os.LookupEnv(envPrefix + strings.ToUpper(name)); ok {
 		return flag.String(name, v, usage)
 	}
@@ -582,12 +577,12 @@ func main() {
 				content, err := ioutil.ReadFile(*pidfile)
 				if err != nil {
 					log.Printf("Can't read PID file: %s", err)
-					return 0, fmt.Errorf("Can't read pid file: %s", err)
+					return 0, fmt.Errorf("Can't read pid file: %w", err)
 				}
 				value, err := strconv.Atoi(strings.TrimSpace(string(content)))
 				if err != nil {
 					log.Printf("Can't parse PID file: %s", err)
-					return 0, fmt.Errorf("Can't parse pid file: %s", err)
+					return 0, fmt.Errorf("Can't parse pid file: %w", err)
 				}
 				return value, nil
 			},
