@@ -11,7 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-GO     ?= GO15VENDOREXPERIMENT=1 go
 GOPATH := $(firstword $(subst :, ,$(shell $(GO) env GOPATH)))
 GOARCH := $(shell $(GO) env GOARCH)
 GOHOSTARCH := $(shell $(GO) env GOHOSTARCH)
